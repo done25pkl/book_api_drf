@@ -1,22 +1,55 @@
 from rest_framework import serializers
-from .models import Book
+from .models import Book, BookImage
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 import re
 
-class BookSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(required=False) #Allow optional image
+class BookImageSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(use_url=True)
+
     class Meta:
-        model = Book
-        fields = ['id', 'title', 'author', 'published_date', 'image']
+        model = BookImage
+        fields = ['id', 'image']
 
     def validate_image(self, value):
-        # Optional: Validate image size (e.g., max 2MB)
-        max_size = 2 * 1024 * 1024  # 2MB in bytes
+        max_size = 2 * 1024 * 1024  # 2MB
         if value.size > max_size:
             raise serializers.ValidationError("Image file too large (max 2MB).")
         return value
+
+class BookSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
+    )
+    uploaded_images = BookImageSerializer(source='images', many=True, read_only=True)
+
+    class Meta:
+        model = Book
+        fields = ['id', 'title', 'author', 'published_date', 'images', 'uploaded_images']
+
+    def create(self, validated_data):
+        image_files = validated_data.pop('images', [])
+        book = Book.objects.create(**validated_data)
+        for image in image_files:
+            BookImage.objects.create(book=book, image=image)
+        return book
+
+    def update(self, instance, validated_data):
+        image_files = validated_data.pop('images', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if image_files is not None:
+            # Delete existing images and add new ones
+            instance.images.all().delete()
+            for image in image_files:
+                BookImage.objects.create(book=instance, image=image)
+        return instance
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

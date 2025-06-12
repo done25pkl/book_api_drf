@@ -7,14 +7,17 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Book
 from .serializers import BookSerializer, UserSerializer, RegisterSerializer
 from django.contrib.auth.models import User
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class BookListCreateView(generics.ListCreateAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
+    parser_classes = [MultiPartParser, FormParser]  
 
-class BookDetailView(generics.RetrieveDestroyAPIView):
+class BookDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
+    parser_classes = [MultiPartParser, FormParser]
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
