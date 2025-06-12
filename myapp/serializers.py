@@ -6,9 +6,17 @@ from django.core.exceptions import ValidationError
 import re
 
 class BookSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False) #Allow optional image
     class Meta:
         model = Book
-        fields = ['id', 'title', 'author', 'published_date']
+        fields = ['id', 'title', 'author', 'published_date', 'image']
+
+    def validate_image(self, value):
+        # Optional: Validate image size (e.g., max 2MB)
+        max_size = 2 * 1024 * 1024  # 2MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError("Image file too large (max 2MB).")
+        return value
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
