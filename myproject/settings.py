@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'django_filters',
     'myapp'
 ]
 
@@ -134,9 +135,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',  # Require authentication by default
-    ],
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',  # Require authentication by default
+    # ],
     # Rate limiting
     # Limits login attempts to prevent brute force attacks
     'DEFAULT_THROTTLE_CLASSES': [
@@ -144,11 +145,14 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        # 'anon': '100/day',
-        # 'user': '1000/day'
-        'anon': '5/minute',
-        'user': '10/hour'
-    }
+        'anon': '1000/day',
+        'user': '1000/day',
+        # 'anon': '5/minute',
+        # 'user': '10/hour',
+    },
+    # Pagination
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10  # Number of items per page
 }
 
 SIMPLE_JWT = {
