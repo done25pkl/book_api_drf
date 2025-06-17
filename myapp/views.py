@@ -10,6 +10,53 @@ from .models import Book
 from .serializers import BookSerializer, UserSerializer, RegisterSerializer
 from django.contrib.auth.models import User
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import AccessToken
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        refresh_token = response.data['refresh']
+        response.set_cookie(
+            'refresh_token',
+            refresh_token,
+            httponly=True,
+            secure=True,  # Set to True in production with HTTPS
+            samesite='Strict',
+            max_age=86400  # 1 day (match REFRESH_TOKEN_LIFETIME)
+        )
+        del response.data['refresh']  # Remove from JSON response
+        return response
+    
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        # Get the refresh token from the cookie
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            return Response({'detail': 'Refresh token missing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set the refresh token in the request data for simplejwt to process
+        request.data['refresh'] = refresh_token
+
+        # Call the parent class to refresh the token
+        response = super().post(request, *args, **kwargs)
+
+        # Get the new refresh token from the response
+        new_refresh_token = response.data.get('refresh')
+        if new_refresh_token:
+            # Update the cookie with the new refresh token
+            response.set_cookie(
+                'refresh_token',
+                new_refresh_token,
+                httponly=True,
+                secure=True,  # Set to True in production with HTTPS
+                samesite='Strict',
+                max_age=86400  # 1 day (match REFRESH_TOKEN_LIFETIME)
+            )
+            # Remove the refresh token from the JSON response
+            del response.data['refresh']
+
+        return response
 
 class BookListCreateView(generics.ListCreateAPIView):
     queryset = Book.objects.all()
@@ -42,9 +89,26 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            refresh_token = request.COOKIES.get('refresh_token')
+            if refresh_token:
+                refresh = RefreshToken(refresh_token)
+                refresh.blacklist()
+
+            # Optionally blacklist the access token
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                access_token = auth_header.split(' ')[1]
+                try:
+                    AccessToken(access_token).blacklist()
+                except Exception:
+                    pass  # Ignore if token is invalid or already expired
+
+            response = Response(status=status.HTTP_205_RESET_CONTENT)
+            response.delete_cookie(
+                'refresh_token',
+                path='/',
+                domain=None
+            )
+            return response
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
